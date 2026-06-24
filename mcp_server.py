@@ -401,7 +401,7 @@ async def _get_auth() -> XiaomiAuth:
             "Not authenticated. Run `uv run --script login.py` first, "
             "or set XIAOMI_PASS_TOKEN / XIAOMI_USER_ID / XIAOMI_DEVICE_ID env vars."
         )
-    _session = aiohttp.ClientSession()
+    _session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False))
     _auth = XiaomiAuth(_session)
     return _auth
 
