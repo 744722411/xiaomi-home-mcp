@@ -34,6 +34,8 @@ Tools:
 import json
 import logging
 import os
+import secrets
+import string
 import time
 from base64 import b64decode, b64encode
 from hashlib import sha1, sha256
@@ -171,21 +173,34 @@ class XiaomiAuth:
 class XiaomiIOService:
     """Xiaomi IoT cloud API client."""
 
-    def __init__(self, auth: XiaomiAuth, server="https://api.io.mi.com/app"):
+    def __init__(self, auth: "XiaomiAuth", server="https://api.io.mi.com/app"):
         self.auth = auth
         self.server = server
+        # 每次启动随机化的客户端指纹（同 micloud 的做法）
+        self._agent_id = "".join(
+            secrets.choice("0123456789ABCDEF") for _ in range(40)
+        )
+        self._client_id = "".join(
+            secrets.choice(string.ascii_letters + string.digits) for _ in range(6)
+        )
 
     async def _request(self, uri: str, data):
         ssecurity, service_token = await self.auth.login("xiaomiio")
         signed = XiaomiAuth.sign_data(uri, data, ssecurity)
         headers = {
-            "User-Agent": "iOS-14.4-6.0.103-iPhone12,3--D7744744F7AF32F0544445285880DD63E47D9BE9-8816080-84A3F44E137B71AE-iPhone",
+            # 2026-11 修正：旧的 iOS UA 已被小米云判定为 "client withdraw"（HTTP 429 / code -127），
+            # 换用 micloud 0.6 维护的 Android 客户端指纹
+            "User-Agent": "Android-7.1.1-1.0.0-ONEPLUS A3010-136-"
+            + self._agent_id
+            + " APP/xiaomi.smarthome APPV/62830",
             "x-xiaomi-protocal-flag-cli": "PROTOCAL-HTTP2",
         }
         cookies = {
             "userId": str(self.auth.token["userId"]),
             "serviceToken": service_token,
             "PassportDeviceId": self.auth.token["deviceId"],
+            "sdkVersion": "3.8.6",
+            "deviceId": self._client_id,
         }
         async with self.auth.session.post(
             self.server + uri, data=signed, headers=headers, cookies=cookies
